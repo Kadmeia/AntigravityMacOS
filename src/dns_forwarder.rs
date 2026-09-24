@@ -881,19 +881,21 @@ fn on_refusals(count: usize, at: Instant, host: Option<&str>) {
                     // offered the table afresh, while the answer in flight
                     // never notices.
                     let same = shape.is_some_and(|s| s.answered_ago.is_some());
-                    if same {
+                    if same && shape.is_some_and(|s| s.idle < Duration::from_millis(1500)) {
                         acted.push(format!(
-                            "ошибка 400 пришла по тому же соединению, по которому идёт ответ модели («{}»): отказывают отдельные запросы, а не маршрут — смена маршрута тут не поможет",
-                            kind.label()
+                            "по «{}» прямо сейчас идёт ответ модели — соединение #{} не тронуто",
+                            kind.label(),
+                            tunnel
                         ));
-                    } else if routes::cut_tunnel(tunnel) {
+                    } else if routes::cut_refused_tunnel(tunnel) {
                         log_proxy(&format!(
-                            "соединение #{} закрыто — по «{}» ответ модели идёт по другому, его не трогаем",
+                            "соединение #{} «{}» закрыто из-за ошибки 400 — повтор пойдёт чистым маршрутом",
                             tunnel,
                             kind.label()
                         ));
                         acted.push(format!(
-                            "по «{}» идёт ответ модели — маршрут не тронут; отказавшее соединение закрыто, следующий запрос пойдёт по новому",
+                            "отказавшее соединение #{} по «{}» закрыто, следующий запрос пойдёт чистым маршрутом",
+                            tunnel,
                             kind.label()
                         ));
                     } else {
@@ -987,7 +989,10 @@ fn on_answers(count: usize, at: Instant, host: Option<&str>) {
         g.route = Some(label);
     }
     for (held, route) in lines {
-        log_proxy(&format!("модель ответила (x{}) — маршрут «{}»", held, route));
+        log_proxy(&format!(
+            "модель ответила (x{}) — маршрут «{}»",
+            held, route
+        ));
     }
     gate::record_answer(carried.map(|(k, _)| k.label()));
 }
@@ -1184,9 +1189,8 @@ fn serve_dns_forever() -> ! {
                 sock
             }
             Err(e) => {
-                let blocker =
-                    crate::portcheck::diagnose_on(addr, &e, crate::portcheck::Proto::Udp)
-                        .blocker("dns", addr, &e);
+                let blocker = crate::portcheck::diagnose_on(addr, &e, crate::portcheck::Proto::Udp)
+                    .blocker("dns", addr, &e);
                 // Once per distinct cause: the retry is a minute, the log is 64 KB.
                 if said.as_ref() != Some(&blocker) {
                     log(&format!(

@@ -86,14 +86,14 @@ impl Kind {
     }
 }
 
-/// The order before anything has been measured. Direct first because that is
-/// what the last round of measurements found fastest; the user's VPN next,
-/// because a tunnel that lifts the gate is the path they chose; the relay last
-/// because it is the one route somebody else can revoke.
+/// The order before anything has been measured. Own first, then the authenticated
+/// CONNECT relay (relay.xbox-dns.ru) which has dedicated permitted-region egress
+/// and zero region-400s; then built-in foreign exits; the user's VPN next;
+/// and direct DNS substitution last as fallback when proxy routes are not usable.
 ///
 /// A build without a DNS layer (Linux) has no substituted address for the direct
 /// tunnel to reach, so there it goes to the back regardless; see `order_with`.
-const DEFAULT_ORDER: [Kind; N] = [Kind::Own, Kind::Direct, Kind::Vpn, Kind::Exits, Kind::Relay];
+const DEFAULT_ORDER: [Kind; N] = [Kind::Own, Kind::Relay, Kind::Exits, Kind::Direct, Kind::Vpn];
 
 /// A measurement older than this says nothing about the route now. Probes run
 /// every two minutes; three misses in a row and the route is unmeasured again.
@@ -490,7 +490,6 @@ pub fn set_context(fingerprint: u64) -> bool {
     !first
 }
 
-
 /// The order to try routes in for the next connection, best first, among those
 /// `usable` says are worth trying at all.
 ///
@@ -712,11 +711,7 @@ impl Activity {
     pub fn idle(&self) -> Option<Duration> {
         match self.at_ms.load(Ordering::Relaxed) {
             0 => None,
-            ms => Some(
-                epoch()
-                    .elapsed()
-                    .saturating_sub(Duration::from_millis(ms)),
-            ),
+            ms => Some(epoch().elapsed().saturating_sub(Duration::from_millis(ms))),
         }
     }
 
@@ -811,7 +806,9 @@ pub fn attach_upstream(upstream: &TcpStream) {
     let Some(id) = SERVING.with(|s| s.borrow().as_ref().and_then(|s| s.tunnel)) else {
         return;
     };
-    let Ok(clone) = upstream.try_clone() else { return };
+    let Ok(clone) = upstream.try_clone() else {
+        return;
+    };
     if let Ok(mut list) = TUNNELS.lock() {
         if let Some(t) = list.iter_mut().find(|t| t.id == id && t.closed.is_none()) {
             t.upstream = Some(clone);
@@ -1025,6 +1022,27 @@ pub fn cut_tunnel(id: u64) -> bool {
     cut
 }
 
+/// Closes one gate tunnel that encountered a region-400 refusal, even if it
+/// carried an answer in the past.
+///
+/// Keeping a poisoned connection open in the client's HTTP/2 keep-alive pool
+/// guarantees that subsequent requests sent into it will also fail. Closing it
+/// forces the client to open a fresh connection on the best available route.
+pub fn cut_refused_tunnel(id: u64) -> bool {
+    let Ok(mut list) = TUNNELS.lock() else {
+        return false;
+    };
+    let Some(t) = list.iter_mut().find(|t| t.id == id && t.closed.is_none()) else {
+        return false;
+    };
+    let mut cut = false;
+    for sock in [t.client.take(), t.upstream.take()].into_iter().flatten() {
+        sock.shutdown(std::net::Shutdown::Both).ok();
+        cut = true;
+    }
+    cut
+}
+
 /// An **open** tunnel of `kind` that carried a model answer, i.e. a conversation
 /// still in flight, with how long since its last byte.
 ///
@@ -1149,11 +1167,11 @@ mod tests {
     }
 
     #[test]
-    fn unmeasured_routes_take_the_default_order_direct_first() {
+    fn unmeasured_routes_take_the_default_order() {
         let order = order_with(&blank(), true, |_| true);
         assert_eq!(
             order,
-            vec![Kind::Own, Kind::Direct, Kind::Vpn, Kind::Exits, Kind::Relay]
+            vec![Kind::Own, Kind::Relay, Kind::Exits, Kind::Direct, Kind::Vpn]
         );
     }
 
@@ -1232,7 +1250,10 @@ mod tests {
         let order = order_with(&s, true, |k| k != Kind::Own && k != Kind::Vpn);
         assert_eq!(order, vec![Kind::Exits, Kind::Relay, Kind::Direct]);
         s.stumbled[Kind::Direct.index()] = Some(Instant::now() - ms(1));
-        assert_eq!(order_with(&s, true, |k| k != Kind::Own && k != Kind::Vpn)[0], Kind::Direct);
+        assert_eq!(
+            order_with(&s, true, |k| k != Kind::Own && k != Kind::Vpn)[0],
+            Kind::Direct
+        );
     }
 
     #[test]
@@ -1432,7 +1453,10 @@ mod tests {
             Some(Kind::Exits)
         );
         // An event about the other host is not this tunnel's.
-        assert_eq!(attribute(Instant::now(), Some("cloudcode-pa.googleapis.com")), None);
+        assert_eq!(
+            attribute(Instant::now(), Some("cloudcode-pa.googleapis.com")),
+            None
+        );
         assert!(open_counts()[Kind::Exits.index()] >= 1);
 
         set_context(0x4444);
@@ -1442,6 +1466,8 @@ mod tests {
         let mut buf = [0u8; 1];
         let got = far.read(&mut buf);
         assert!(matches!(got, Ok(0) | Err(_)), "the tunnel was not closed");
+        far.shutdown(std::net::Shutdown::Both).ok();
+        drop(far);
         server.join().expect("server thread");
         credit(Kind::Exits);
     }
@@ -1473,7 +1499,10 @@ mod tests {
             let _ = near.read(&mut buf);
             done_tx.send(()).ok();
         });
-        let activity = rx.recv().expect("opened").expect("a gate tunnel has a stamp");
+        let activity = rx
+            .recv()
+            .expect("opened")
+            .expect("a gate tunnel has a stamp");
 
         set_context(0x5555);
         let (kind, id) = attribute_tunnel(Instant::now(), None).expect("attributed");
@@ -1640,7 +1669,10 @@ mod tests {
             .answered_ago
             .is_none());
 
+        refused.shutdown(std::net::Shutdown::Both).ok();
         answering.shutdown(std::net::Shutdown::Both).ok();
+        drop(refused);
+        drop(answering);
         t1.join().expect("first tunnel");
         t2.join().expect("second tunnel");
     }

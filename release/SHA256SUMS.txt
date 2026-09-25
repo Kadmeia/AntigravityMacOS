@@ -1,0 +1,4 @@
+1a23b95703ee0edab253fdc1039e84df237e8c725b94c20835f62a70f2fdbcf1  Antigravity-Unlocker-1.0-macOS-arm64-Installer.pkg
+b38b16dc6f9b07d0f496c5e0f44c38121441365445cbb72d2ff2744c2c683581  Antigravity-Unlocker-1.0-macOS-arm64.dmg
+801e60df4ecdcb4bc4f488a0b3a958592d74153e2771fda16872596655f07c94  Antigravity-Unlocker-1.0-macOS-x86_64-Installer.pkg
+b1263ba5390ffa8df1bc58d8af323938a34af002fd749da2888dd4a6a2a14fa4  Antigravity-Unlocker-1.0-macOS-x86_64.dmg

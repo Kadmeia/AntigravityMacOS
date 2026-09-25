@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+build/
+dist/
+release/*.app/
+*.app/
+
+# App backups & temp
+*.agybak
+*.ag_backup
+*.bak
+*.log
+
+# App state
+config.json

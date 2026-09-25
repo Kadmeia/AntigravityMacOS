@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Antigravity Unlocker — by Kadmeia</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/png" href="icon.png">
+</head>
+<body class="amnezia-theme">
+  <div class="window-wrapper">
+
+    <!-- VIEW 1: MAIN SCREEN (AMNEZIA STYLE) -->
+    <div class="screen active" id="screenMain">
+      <!-- Minimal Header -->
+      <header class="main-header">
+        <div class="header-left">
+          <img src="icon.png" alt="Logo" class="mini-logo">
+          <div class="header-titles">
+            <span class="app-title">Antigravity</span>
+            <span class="app-sub">Unlocker macOS · by Kadmeia</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <button class="icon-btn" id="btnOpenSettings" title="Настройки" aria-label="Открыть настройки">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Program Selector (Clean Segmented / Dropdown) -->
+      <div class="selector-container">
+        <label class="selector-label" for="targetAppSelect">Выберите программу для защиты:</label>
+        <div class="custom-select-wrapper">
+          <select id="targetAppSelect" class="clean-select">
+            <option value="antigravity_desktop" selected>🚀 Antigravity 2.0 (Desktop)</option>
+            <option value="antigravity_ide">💻 Antigravity IDE</option>
+          </select>
+          <div class="select-chevron">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+        </div>
+        <div class="target-status-sub" id="targetStatusSub">Проверка установленных приложений...</div>
+      </div>
+
+      <!-- Main Action Button Area -->
+      <div class="action-hero">
+        <div class="button-halo" id="buttonHalo"></div>
+        <button class="amnezia-btn" id="btnPatchAction" aria-describedby="targetStatusSub">
+          <div class="btn-ripple"></div>
+          <div class="btn-face">
+            <div class="action-icon" id="actionIcon">
+              <!-- Shield / Lock icon or Checkmark -->
+              <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+            </div>
+            <span class="action-title" id="actionTitle">Снять защиту</span>
+            <span class="action-subtitle" id="actionSubtitle">Нажмите для разблокировки</span>
+          </div>
+        </button>
+      </div>
+
+      <!-- Permanent Status Explainer Note -->
+      <div class="permanent-note-card" id="permanentNoteCard">
+        <div class="note-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        </div>
+        <div class="note-text" id="noteText">
+          Патч применяется <strong>навсегда</strong>. Нажимать кнопку каждый раз не требуется — только если выйдет обновление Antigravity.
+        </div>
+      </div>
+
+      <!-- Minimal Bottom Status Bar -->
+      <div class="main-status-bar">
+        <div class="footer-chip">
+          <span class="status-dot green" id="footerDot"></span>
+          <span class="footer-chip-text" id="footerProxyText">Служба 53128: Остановлена</span>
+        </div>
+        <div class="footer-chip">
+          <span class="footer-chip-text" id="footerPingText">Готов к работе</span>
+        </div>
+      </div>
+
+      <!-- Подвал приложения со ссылками автора -->
+      <footer class="app-footer">
+        <div class="footer-links">
+          <a href="https://t.me/pro_servitude" target="_blank" rel="noopener noreferrer" class="footer-link telegram-link" onclick="openExternalUrl(event, 'https://t.me/pro_servitude')">
+            <svg class="footer-icon" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.06-.2-.06-.05-.14-.03-.21-.02-.09.02-1.46.93-4.12 2.73-.39.27-.74.4-1.06.39-.35-.01-1.02-.2-1.52-.36-.61-.2-1.1-.31-1.07-.66.02-.18.27-.36.75-.55 2.94-1.28 4.91-2.13 5.89-2.54 2.8-1.18 3.38-1.38 3.76-1.39.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .34z"/></svg>
+            <span>Telegram-канал</span>
+          </a>
+          <a href="https://t.me/aebeloglazov" target="_blank" rel="noopener noreferrer" class="footer-link author-link" onclick="openExternalUrl(event, 'https://t.me/aebeloglazov')">
+            <svg class="footer-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+            <span>Написать автору</span>
+          </a>
+          <a href="https://pay.cloudtips.ru/p/3bde1c71" target="_blank" rel="noopener noreferrer" class="footer-link support-link" onclick="openExternalUrl(event, 'https://pay.cloudtips.ru/p/3bde1c71')">
+            <svg class="footer-icon heart-icon" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            <span>Поддержать автора</span>
+          </a>
+        </div>
+      </footer>
+    </div>
+
+    <!-- VIEW 2: SETTINGS SCREEN -->
+    <div class="screen" id="screenSettings">
+      <header class="settings-header">
+          <button class="back-btn" id="btnCloseSettings" aria-label="Вернуться на главный экран">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          Назад
+        </button>
+        <span class="settings-title">Настройки</span>
+        <div style="width: 60px;"></div>
+      </header>
+
+      <div class="settings-body">
+        <!-- Section: Actions -->
+        <div class="settings-section">
+          <div class="section-title">УПРАВЛЕНИЕ АНТИГРАВИТИ</div>
+          <div class="settings-row">
+            <div>
+              <div class="setting-name">Перезапустить Antigravity</div>
+              <div class="setting-desc">Применить изменения или закрыть зависший процесс</div>
+            </div>
+            <button class="btn-compact" id="btnRestartApp">Перезапуск</button>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="setting-name">Снять патч с выбранной программы</div>
+              <div class="setting-desc">Восстановить файлы из копии и выключить для неё автопатч. Для заводской подписи нужна официальная переустановка.</div>
+            </div>
+            <button class="btn-compact btn-danger-soft" id="btnUnpatchAll">Откатить</button>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="setting-name">Автопатч при обновлениях</div>
+              <div class="setting-desc">Автоматически восстанавливать патч при обновлении версий</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="chkAutoPatch" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Section: Routing -->
+        <div class="settings-section">
+          <div class="section-title">МАРШРУТИЗАЦИЯ СОЕДИНЕНИЙ</div>
+          <div class="route-select-wrapper">
+            <select id="routeModeSelect" class="clean-select">
+              <option value="smart">⚡ Автовыбор доступного соединения</option>
+              <option value="tls_split">🛡️ Обход DPI (Фрагментация TLS)</option>
+              <option value="custom">🌐 Свой прокси (Custom Upstream)</option>
+              <option value="direct">➡️ Прямое соединение (Direct)</option>
+            </select>
+          </div>
+
+          <div class="custom-proxy-box" id="customProxyBox" style="display: none;">
+            <div class="form-grid">
+              <div>
+                <label>Тип</label>
+                <select id="proxyType" class="clean-select">
+                  <option value="http">HTTP</option>
+                  <option value="socks5">SOCKS5</option>
+                </select>
+              </div>
+              <div style="flex: 2;">
+                <label>IP / Хост</label>
+                <input type="text" id="proxyHost" class="clean-input" placeholder="127.0.0.1" value="127.0.0.1">
+              </div>
+              <div>
+                <label>Порт</label>
+                <input type="number" id="proxyPort" class="clean-input" placeholder="7890" value="7890">
+              </div>
+            </div>
+            <button class="btn-compact" id="btnSaveProxy" style="margin-top: 10px; width: 100%;">Сохранить прокси</button>
+          </div>
+        </div>
+
+        <!-- Section: Diagnostics & Session Log -->
+        <div class="settings-section">
+          <div class="section-title">ДИАГНОСТИКА И ЖУРНАЛ СЕССИИ</div>
+          <div class="settings-row">
+            <div>
+              <div class="setting-name">Журнал работы и ошибок</div>
+              <div class="setting-desc" id="sessionLogStats">Подключений: 0 | Ошибок: 0</div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn-compact" id="btnToggleLog">Показать</button>
+              <button class="btn-compact" id="btnCopyLog">Копировать</button>
+            </div>
+          </div>
+          <div class="log-console-container" id="logConsoleContainer" style="display: none;">
+            <div class="log-console-header">
+              <span class="log-console-path" id="logConsolePath">~/.agunlocker_mac/session.log</span>
+              <button class="btn-compact-sm" id="btnRefreshLog">Обновить</button>
+            </div>
+            <pre class="log-console" id="logConsoleText">Загрузка журнала...</pre>
+          </div>
+        </div>
+
+        <div class="settings-section about-section">
+          <div class="section-title">О ПРИЛОЖЕНИИ</div>
+          <p class="about-copy">
+            <strong>Antigravity Unlocker — by Kadmeia</strong><br>
+            Неофициальный macOS-форк
+            <a href="https://github.com/AvenCores/open-antigravity-patcher" target="_blank" rel="noopener noreferrer">Open AG Patcher</a>.<br>
+            Оригинальный автор:
+            <a href="https://github.com/AvenCores" target="_blank" rel="noopener noreferrer">AvenCores</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast-box" id="toastBox" role="status" aria-live="polite"></div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

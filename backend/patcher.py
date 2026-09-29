@@ -193,11 +193,15 @@ def ensure_bundle_writable(target_path: str, app_bundle_path: str | None = None)
     except OSError:
         pass
 
-    # 2. Request elevation via standard macOS dialog with xattr -cr, chown, and chmod
+    # 2. Request elevation via standard macOS dialog with xattr, chown, and chmod
     try:
         current_user = getpass.getuser()
         escaped = bundle_to_fix.replace('"', '\\"')
-        shell_cmd = f'xattr -cr \\"{escaped}\\" && chown -R {current_user} \\"{escaped}\\" && chmod -R u+w \\"{escaped}\\"'
+        shell_cmd = (
+            f'(xattr -dr com.apple.quarantine \\"{escaped}\\" 2>/dev/null || true); '
+            f'(xattr -cr \\"{escaped}\\" 2>/dev/null || true); '
+            f'chown -R {current_user} \\"{escaped}\\" && chmod -R u+w \\"{escaped}\\"'
+        )
         applescript = f'do shell script "{shell_cmd}" with administrator privileges'
         res = subprocess.run(
             ["osascript", "-e", applescript],

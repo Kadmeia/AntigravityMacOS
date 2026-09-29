@@ -137,50 +137,84 @@ def _copy_replace_metadata(source: str, destination: str) -> None:
         logging.debug("Could not copy metadata from %s to %s: %s", source, destination, e)
 
 
+def _is_writable(directory: str, target_path: str | None = None) -> bool:
+    """Verifies that a directory and optional target file can actually be written to."""
+    if not os.path.exists(directory):
+        return False
+    test_file = os.path.join(directory, f".agy_canary_{os.getpid()}_{int(time.time() * 1000)}.tmp")
+    try:
+        with open(test_file, "wb") as f:
+            f.write(b"")
+        try:
+            os.unlink(test_file)
+        except OSError:
+            pass
+    except (OSError, PermissionError):
+        return False
+
+    if target_path and os.path.exists(target_path) and not os.path.isdir(target_path):
+        try:
+            with open(target_path, "a+b") as f:
+                pass
+        except (OSError, PermissionError):
+            return False
+
+    return True
+
+
 def ensure_bundle_writable(target_path: str, app_bundle_path: str | None = None) -> bool:
     """
-    Checks if target_path or its directory is writable.
-    If not, attempts to fix permissions (via chmod, or osascript administrator prompt).
+    Checks if target_path or its directory is actually writable.
+    If not, attempts to fix permissions (via chmod, xattr -cr, or osascript administrator prompt).
     """
-    directory = os.path.dirname(target_path)
-    if os.path.exists(directory) and os.access(directory, os.W_OK):
-        if not os.path.exists(target_path) or os.access(target_path, os.W_OK):
-            return True
+    directory = os.path.dirname(target_path) if not os.path.isdir(target_path) else target_path
+    if _is_writable(directory, target_path if not os.path.isdir(target_path) else None):
+        return True
 
-    # Try local chmod if owned by current user
+    # Find the app bundle root to grant permissions / clear quarantine
+    bundle_to_fix = app_bundle_path
+    if not bundle_to_fix and ".app/" in target_path:
+        bundle_to_fix = target_path[:target_path.find(".app/") + 4]
+    if not bundle_to_fix and target_path.endswith(".app"):
+        bundle_to_fix = target_path
+    if not bundle_to_fix:
+        bundle_to_fix = directory
+
+    # 1. Try non-elevated quarantine removal and chmod first
     try:
+        if os.path.exists(bundle_to_fix):
+            subprocess.run(["xattr", "-cr", bundle_to_fix], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
         if os.path.exists(directory):
             os.chmod(directory, 0o755)
-        if os.path.exists(target_path):
+        if os.path.exists(target_path) and not os.path.isdir(target_path):
             os.chmod(target_path, 0o755)
-        if os.access(directory, os.W_OK) and (not os.path.exists(target_path) or os.access(target_path, os.W_OK)):
+        if _is_writable(directory, target_path if not os.path.isdir(target_path) else None):
             return True
     except OSError:
         pass
 
-    # Find the app bundle root to grant permissions
-    bundle_to_fix = app_bundle_path
-    if not bundle_to_fix and ".app/" in target_path:
-        bundle_to_fix = target_path[:target_path.find(".app/") + 4]
-
-    if not bundle_to_fix:
-        bundle_to_fix = directory
-
-    # Request elevation via standard macOS dialog
+    # 2. Request elevation via standard macOS dialog with xattr -cr, chown, and chmod
     try:
         current_user = getpass.getuser()
         escaped = bundle_to_fix.replace('"', '\\"')
-        cmd = f'do shell script "chown -R {current_user} \\"{escaped}\\" && chmod -R u+w \\"{escaped}\\"" with administrator privileges'
-        res = subprocess.run(["osascript", "-e", cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
+        shell_cmd = f'xattr -cr \\"{escaped}\\" && chown -R {current_user} \\"{escaped}\\" && chmod -R u+w \\"{escaped}\\"'
+        applescript = f'do shell script "{shell_cmd}" with administrator privileges'
+        res = subprocess.run(
+            ["osascript", "-e", applescript],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=45,
+        )
         if res.returncode == 0:
-            logging.info(f"Granted write permissions on {bundle_to_fix} via macOS elevation")
-            return True
+            logging.info(f"Снят карантин и предоставлены права на {bundle_to_fix} через macOS elevation")
+            return _is_writable(directory, target_path if not os.path.isdir(target_path) else None)
         else:
-            logging.warning(f"Elevation rejected or failed: {res.stderr.strip()}")
+            logging.warning(f"Запрос прав macOS отклонён или завершился с ошибкой: {res.stderr.strip()}")
     except Exception as e:
-        logging.warning(f"Could not request elevation: {e}")
+        logging.warning(f"Не удалось запросить повышение прав: {e}")
 
-    return os.path.exists(directory) and os.access(directory, os.W_OK)
+    return _is_writable(directory, target_path if not os.path.isdir(target_path) else None)
 
 
 def _safe_copy_file(src: str, dst: str, app_bundle_path: str | None = None) -> None:
@@ -224,11 +258,16 @@ def _safe_copy_file(src: str, dst: str, app_bundle_path: str | None = None) -> N
         except OSError:
             pass
 
+        target_app = app_bundle_path or "/Applications/Antigravity.app"
         hint = ""
         if err.errno == 1:
-            hint = " (macOS заблокировала изменение файлов в /Applications. Предоставьте доступ в «Системные настройки → Конфиденциальность → Управление приложениями» для Терминала/Unlocker, либо выполните в Терминале: sudo chown -R $(whoami) '/Applications/Antigravity.app')"
+            hint = (
+                f" (macOS заблокировала изменение файлов из-за карантина Gatekeeper или защиты TCC. "
+                f"Выполните в Терминале: sudo xattr -cr '{target_app}' && sudo chmod -R 777 '{target_app}' "
+                f"либо разрешите доступ приложению в «Системные настройки → Конфиденциальность → Управление приложениями»)"
+            )
         elif err.errno == 13:
-            hint = f" (Нет прав на запись. Выполните в Терминале: sudo chown -R $(whoami) '{app_bundle_path or os.path.dirname(dst)}')"
+            hint = f" (Нет прав на запись. Выполните в Терминале: sudo xattr -cr '{target_app}' && sudo chmod -R 777 '{target_app}')"
         raise OSError(err.errno, f"{err.strerror}{hint}")
 
 
@@ -326,6 +365,7 @@ def patch_binary_file(bin_path: str, app_bundle_path: str | None = None) -> tupl
         if has_existing_patch:
             logging.warning(f"Файл {bin_path} уже пропатчен, резервная копия оригинала не может быть создана")
         else:
+            ensure_bundle_writable(bin_path, app_bundle_path)
             try:
                 _safe_copy_file(bin_path, backup_path, app_bundle_path)
                 _write_backup_checksum(backup_path)
@@ -441,6 +481,7 @@ def patch_js_file(js_path: str, app_bundle_path: str | None = None) -> tuple[boo
         if not _verify_backup_checksum(backup_path):
             return False, "Контрольная сумма резервной копии JS не совпадает; патч отменён"
     else:
+        ensure_bundle_writable(js_path, app_bundle_path)
         try:
             _safe_copy_file(js_path, backup_path, app_bundle_path)
             _write_backup_checksum(backup_path)
@@ -617,7 +658,7 @@ def unpatch_app_fully(app_info: dict[str, Any]) -> tuple[bool, str]:
         backup = path + suffix
         if not _verify_backup_checksum(backup):
             return False, f"Нет пригодной резервной копии: {backup}"
-        if not os.access(os.path.dirname(path), os.W_OK):
+        if not ensure_bundle_writable(path, app_path):
             return False, f"Нет доступа на запись в {os.path.dirname(path)}"
 
     results: list[str] = []

@@ -852,3 +852,14 @@ def test_session_logs_endpoint_serves_structured_data(monkeypatch):
         httpd.server_close()
 
 
+def test_is_writable_and_ensure_bundle_writable(tmp_path):
+    test_dir = tmp_path / "app_dir"
+    test_dir.mkdir()
+    test_file = test_dir / "target.bin"
+    test_file.write_bytes(b"hello")
+
+    assert patcher._is_writable(str(test_dir), str(test_file)) is True
+    assert patcher.ensure_bundle_writable(str(test_file)) is True
+    assert patcher._is_writable("/nonexistent/path/for/sure") is False
+
+

@@ -4,7 +4,8 @@ Antigravity Unlocker 1.0 — дополнение к GNU GPL v3
 Редакция от 24 сентября 2026 г.
 Проект и оформление macOS-форка: Kadmeia.
 
-Antigravity Unlocker является производной работой Open AG Patcher и
+Antigravity Unlocker является производной работой проекта Antigravity
+(https://github.com/confeden/Antigravity, автор — confeden) и
 распространяется на условиях GNU General Public License, version 3 (LICENSE).
 Настоящее соглашение поясняет назначение, риски и статус проекта. Оно не
 изменяет и не ограничивает права, предоставленные GNU GPL v3 или лицензиями

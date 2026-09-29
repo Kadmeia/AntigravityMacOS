@@ -92,7 +92,7 @@ def patch_info_plist(app_path: Path, arch: str) -> None:
             "LSMinimumSystemVersion": "14.0",
             "NSHighResolutionCapable": True,
             "NSHumanReadableCopyright": (
-                "macOS fork by Kadmeia; based on Open AG Patcher by AvenCores (GPL-3.0)"
+                "macOS fork by Kadmeia; based on Antigravity by confeden (https://github.com/confeden/Antigravity)"
             ),
         }
     )

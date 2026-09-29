@@ -8,7 +8,8 @@
 
 ### 1. Приоритет свободных лицензий
 
-1.1. Antigravity Unlocker является производной работой Open AG Patcher и
+1.1. Antigravity Unlocker является производной работой проекта Antigravity
+(https://github.com/confeden/Antigravity, автор — confeden) и
 распространяется на условиях GNU General Public License, version 3 (`LICENSE`).
 
 1.2. Настоящее соглашение поясняет назначение, риски и статус проекта. Оно не

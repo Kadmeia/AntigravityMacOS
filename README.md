@@ -1,12 +1,12 @@
 # Antigravity Unlocker — by Kadmeia
 
-> **Важно:** это неофициальный macOS-форк и производная работа
-> [Open AG Patcher](https://github.com/AvenCores/open-antigravity-patcher).
-> Оригинальный проект и основная идея принадлежат
-> [AvenCores](https://github.com/AvenCores).
+> **Важно:** это неофициальный macOS-форк и адаптация проекта
+> [Antigravity](https://github.com/confeden/Antigravity) («Antigravity в России без VPN и смены региона аккаунта Google»).
+> Оригинальный проект и основная архитектура принадлежат
+> [confeden](https://github.com/confeden) (Justin, Telegram: [t.me/nova_txt](https://t.me/nova_txt/69864)).
 
-Графическое локальное приложение для управления macOS-адаптацией Open AG
-Patcher. Интерфейс показывает найденные установки Antigravity, применяет
+Графическое локальное приложение для управления macOS-адаптацией Antigravity
+Unlocker. Интерфейс показывает найденные установки Antigravity, применяет
 поддерживаемые локальные изменения, управляет локальным CONNECT-прокси и умеет
 восстанавливать оригинальные файлы из резервных копий.
 
@@ -109,8 +109,6 @@ arch -x86_64 /path/to/x86_64/python scripts/build_macos.py --arch x86_64
 
 ## Происхождение и лицензия
 
-Основной upstream: [AvenCores/open-antigravity-patcher](https://github.com/AvenCores/open-antigravity-patcher),
-автор — [AvenCores](https://github.com/AvenCores), лицензия GPL-3.0.
-Upstream также указывает на решения из
-[QNIX-Dev/eligibility-antigravity-patcher](https://github.com/QNIX-Dev/eligibility-antigravity-patcher)
-под MIT License. Подробности приведены в [NOTICE.md](NOTICE.md).
+Основной upstream: [confeden/Antigravity](https://github.com/confeden/Antigravity),
+автор — [confeden](https://github.com/confeden) (Justin / [t.me/nova_txt](https://t.me/nova_txt/69864)).
+Подробности приведены в [NOTICE.md](NOTICE.md).

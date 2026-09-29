@@ -2,15 +2,14 @@
 
 ## About / краткое описание
 
-Неофициальный macOS-форк Open AG Patcher с GUI для Apple Silicon и Intel — by Kadmeia.
+Неофициальный macOS-форк Antigravity (confeden) с GUI для Apple Silicon и Intel — by Kadmeia. Разблокировка Antigravity в России без VPN.
 
 ## Обязательный блок в начале README или Release
 
-> Это macOS-ориентированный форк и производная работа
-> [Open AG Patcher](https://github.com/AvenCores/open-antigravity-patcher).
-> Оригинальный проект и основная идея принадлежат
-> [AvenCores](https://github.com/AvenCores). Изменения форка сохраняют требования
-> GPL-3.0 и исходную атрибуцию.
+> Это macOS-ориентированный форк и адаптация проекта
+> [Antigravity](https://github.com/confeden/Antigravity) («Antigravity в России без VPN и смены региона аккаунта Google»).
+> Оригинальный проект и основная архитектура принадлежат
+> [confeden](https://github.com/confeden) (Justin, Telegram: [t.me/nova_txt](https://t.me/nova_txt/69864)).
 
 ## Описание релиза
 

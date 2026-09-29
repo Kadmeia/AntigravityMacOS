@@ -20,6 +20,10 @@ _ARM64_TOKEN_SETUP = rb"(?:....){1,2}\x03\x10\x06\xa9"
 ARM64_SIG_UNPATCHED = re.compile(rb"\x03\x20\x40\x39" + _ARM64_TBZ_W3_BIT0 + _ARM64_TOKEN_SETUP, re.S)
 ARM64_REPLACEMENT = b"\x23\x00\x80\x52\x03\x20\x00\x39"
 
+# IDE main.js regex (confeden/Antigravity full onboarding + fallback)
+CONFEDEN_IDE_RE = re.compile(
+    r"async\s+([A-Za-z_$0-9]+)\(([A-Za-z_$0-9]+)\)\s*\{\s*if\(this\.([A-Za-z_$0-9]+)\.send\(\{type:[A-Za-z_$0-9]+\.isGcpTos\?\"GCP_SIGN_IN\":\"SIGN_IN\"\}\),this\.([A-Za-z_$0-9]+)\.resetIsTierGCPTos\(\),this\.[A-Za-z_$0-9]+\.isGoogleInternal\)\{try\{await this\.([A-Za-z_$0-9]+)\.loadCodeAssist\([A-Za-z_$0-9]+\);const\{settings:([A-Za-z_$0-9]+),userTier:([A-Za-z_$0-9]+)\}=await this\.refreshUserStatus\([A-Za-z_$0-9]+\),([A-Za-z_$0-9]+)=([A-Za-z_$0-9]+)\([A-Za-z_$0-9]+\);this\.([A-Za-z_$0-9]+)\.pushUpdate\([A-Za-z_$0-9]+\),this\.[A-Za-z_$0-9]+\.send\(\{type:\"AUTH_SUCCESS\",tokenInfo:[A-Za-z_$0-9]+\}\),this\.([A-Za-z_$0-9]+)\.fire\(\{settings:[A-Za-z_$0-9]+,userTier:[A-Za-z_$0-9]+\}\)\}catch\(([A-Za-z_$0-9]+)\)\{.*?(?:return\}|return;\s*\})"
+)
 IDE_RE = re.compile(r"(resetIsTierGCPTos\(\),)this\.[A-Za-z_$0-9]+\.isGoogleInternal")
 IDE_DONE = "resetIsTierGCPTos(),true"
 
@@ -350,13 +354,54 @@ def patch_js_file(js_path: str, app_bundle_path: str | None = None) -> tuple[boo
         with open(js_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
 
-        if IDE_DONE in content and not IDE_RE.search(content):
+        is_already_patched = (
+            ("onboardUser(\"standard-tier\"" in content)
+            or ("// UNLOCKED" in content)
+            or (IDE_DONE in content and not IDE_RE.search(content))
+        )
+        if is_already_patched:
             return True, "Уже пропатчен"
 
-        if not IDE_RE.search(content):
-            return False, "Сигнатура isGoogleInternal не найдена"
+        m_confeden = CONFEDEN_IDE_RE.search(content)
+        if m_confeden:
+            fname = m_confeden.group(1)
+            var_t = m_confeden.group(2)
+            var_t_send = m_confeden.group(3)
+            var_y = m_confeden.group(4)
+            var_i = m_confeden.group(8)
+            var_func = m_confeden.group(9)
+            var_f = m_confeden.group(10)
+            var_h = m_confeden.group(11)
 
-        new_content = IDE_RE.sub(r"\1true", content)
+            payload = (
+                f"async {fname}({var_t}){{\n"
+                f"    this.{var_t_send}.send({{type:{var_t}.isGcpTos?\"GCP_SIGN_IN\":\"SIGN_IN\"}});\n"
+                f"    this.{var_y}.resetIsTierGCPTos();\n"
+                f"    try {{\n"
+                f"        try {{ await this.{var_y}.loadCodeAssist({var_t}); }} catch(_) {{}}\n"
+                f"        try {{ await this.{var_y}.onboardUser(\"standard-tier\", {var_t}); }} catch(_) {{\n"
+                f"            try {{ await this.{var_y}.onboardUser(\"free-tier\", {var_t}); }} catch(__) {{}}\n"
+                f"        }}\n"
+                f"        let __res = {{ settings: {{}}, userTier: {{ id: \"pro\", description: \"Pro\" }} }};\n"
+                f"        try {{ __res = await this.refreshUserStatus({var_t}); }} catch(_) {{}}\n"
+                f"        const {var_i} = {var_func}({var_t});\n"
+                f"        try {{ this.{var_f}.pushUpdate({var_i}); }} catch(_) {{}}\n"
+                f"        this.{var_t_send}.send({{type:\"AUTH_SUCCESS\",tokenInfo:{var_t}}});\n"
+                f"        this.{var_h}.fire({{settings:__res.settings, userTier:__res.userTier}});\n"
+                f"    }} catch(e) {{}}\n"
+                f"    return;\n"
+                f"}}"
+            )
+            new_content = content[:m_confeden.start()] + payload + content[m_confeden.end():]
+            if not new_content.endswith("\n// UNLOCKED\n") and not new_content.endswith("\n// UNLOCKED"):
+                new_content += "\n// UNLOCKED\n"
+            patch_msg = "Патч Antigravity Pro Onboarding успешно применен"
+        elif IDE_RE.search(content):
+            new_content = IDE_RE.sub(r"\1true", content)
+            patch_msg = "Патч isGoogleInternal успешно применен"
+        else:
+            return False, "Сигнатура для патча авторизации не найдена"
+
         tmp_path: str | None = None
         try:
             fd, tmp_path = tempfile.mkstemp(prefix=f".{os.path.basename(js_path)}-", suffix=".agtmp", dir=os.path.dirname(js_path))
@@ -381,8 +426,8 @@ def patch_js_file(js_path: str, app_bundle_path: str | None = None) -> tuple[boo
 
         clear_ide_cache()
         detector.clear_detection_cache()
-        logging.info(f"Успешно пропатчен {js_path} (isGoogleInternal -> true)")
-        return True, "Патч isGoogleInternal успешно применен"
+        logging.info(f"Успешно пропатчен {js_path}: {patch_msg}")
+        return True, patch_msg
     except Exception as e:
         return False, f"Ошибка патча JS: {e}"
 

@@ -638,6 +638,38 @@ def test_js_patch_resigns_bundle_and_preserves_mode(tmp_path, monkeypatch):
     assert signed == [(str(app), True)]
 
 
+def test_patch_js_file_confeden_onboarding(tmp_path, monkeypatch):
+    app = tmp_path / "Antigravity IDE.app"
+    js_path = app / "Contents" / "Resources" / "app" / "out" / "main.js"
+    js_path.parent.mkdir(parents=True)
+    sample_func = (
+        'async confirmUserForService(t){'
+        'if(this._authActor.send({type:t.isGcpTos?"GCP_SIGN_IN":"SIGN_IN"}),this._cloudCodeMainService.resetIsTierGCPTos(),this._cloudCodeMainService.isGoogleInternal){'
+        'try{await this._cloudCodeMainService.loadCodeAssist(t);'
+        'const{settings:n,userTier:i}=await this.refreshUserStatus(t),a=eve(t);'
+        'this._unifiedStateSyncMainService.pushUpdate(a),'
+        'this._authActor.send({type:"AUTH_SUCCESS",tokenInfo:t}),'
+        'this._onDidOnboardUser.fire({settings:n,userTier:i})'
+        '}catch(n){return}}'
+    )
+    js_path.write_text(sample_func, encoding="utf-8")
+    signed = []
+    monkeypatch.setattr(patcher, "sign_macos", lambda path, deep=False: signed.append((path, deep)) or True)
+    monkeypatch.setattr(patcher, "clear_ide_cache", lambda: None)
+
+    ok, msg = patcher.patch_js_file(str(js_path), str(app))
+    assert ok is True
+    assert "Antigravity Pro Onboarding" in msg
+    content = js_path.read_text(encoding="utf-8")
+    assert 'onboardUser("standard-tier", t)' in content
+    assert 'userTier: { id: "pro", description: "Pro" }' in content
+    assert '// UNLOCKED' in content
+
+    status = detector.check_js_status(str(js_path))
+    assert status["patched"] is True
+    assert "Pro Onboarding" in status["details"]
+
+
 def test_open_url_endpoint(monkeypatch):
     opened = []
     monkeypatch.setattr(server.subprocess, "run", lambda cmd, **kwargs: opened.append(cmd))

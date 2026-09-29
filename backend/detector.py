@@ -8,13 +8,16 @@ import shutil
 import subprocess
 from typing import Any
 
-# ARM64 Manager Gate signature from AvenCores / Open Antigravity Patcher
+# ARM64 Manager Gate signature and Antigravity patterns (confeden/Antigravity)
 _ARM64_TBZ_W3_BIT0 = rb"[\x03\x23\x43\x63\x83\xa3\xc3\xe3]..\x36"
 _ARM64_TOKEN_SETUP = rb"(?:....){1,2}\x03\x10\x06\xa9"
 ARM64_SIG_UNPATCHED = re.compile(rb"\x03\x20\x40\x39" + _ARM64_TBZ_W3_BIT0 + _ARM64_TOKEN_SETUP, re.S)
 ARM64_SIG_PATCHED = re.compile(rb"\x23\x00\x80\x52\x03\x20\x00\x39" + _ARM64_TOKEN_SETUP, re.S)
 
-# IDE main.js regex
+# IDE main.js patterns (confeden/Antigravity full onboarding + fallback)
+CONFEDEN_IDE_RE = re.compile(
+    r"async\s+([A-Za-z_$0-9]+)\(([A-Za-z_$0-9]+)\)\s*\{\s*if\(this\.([A-Za-z_$0-9]+)\.send\(\{type:[A-Za-z_$0-9]+\.isGcpTos\?\"GCP_SIGN_IN\":\"SIGN_IN\"\}\),this\.([A-Za-z_$0-9]+)\.resetIsTierGCPTos\(\),this\.[A-Za-z_$0-9]+\.isGoogleInternal\)\{try\{await this\.([A-Za-z_$0-9]+)\.loadCodeAssist\([A-Za-z_$0-9]+\);const\{settings:([A-Za-z_$0-9]+),userTier:([A-Za-z_$0-9]+)\}=await this\.refreshUserStatus\([A-Za-z_$0-9]+\),([A-Za-z_$0-9]+)=([A-Za-z_$0-9]+)\([A-Za-z_$0-9]+\);this\.([A-Za-z_$0-9]+)\.pushUpdate\([A-Za-z_$0-9]+\),this\.[A-Za-z_$0-9]+\.send\(\{type:\"AUTH_SUCCESS\",tokenInfo:[A-Za-z_$0-9]+\}\),this\.([A-Za-z_$0-9]+)\.fire\(\{settings:[A-Za-z_$0-9]+,userTier:[A-Za-z_$0-9]+\}\)\}catch\(([A-Za-z_$0-9]+)\)\{.*?(?:return\}|return;\s*\})"
+)
 IDE_RE = re.compile(r"(resetIsTierGCPTos\(\),)this\.[A-Za-z_$0-9]+\.isGoogleInternal")
 IDE_DONE = "resetIsTierGCPTos(),true"
 
@@ -187,13 +190,16 @@ def check_js_status(js_path: str | None) -> dict[str, Any]:
         with open(js_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
 
-        is_patched = (IDE_DONE in content) and not bool(IDE_RE.search(content))
-        unpatched = bool(IDE_RE.search(content))
+        is_confeden_patched = ("onboardUser(\"standard-tier\"" in content) or ("// UNLOCKED" in content)
+        is_patched = is_confeden_patched or ((IDE_DONE in content) and not bool(IDE_RE.search(content)))
+        unpatched = bool(CONFEDEN_IDE_RE.search(content)) or bool(IDE_RE.search(content))
 
-        if is_patched:
+        if is_confeden_patched:
+            details = "Antigravity Pro Onboarding + Auth bypass (патч активен)"
+        elif is_patched:
             details = "isGoogleInternal -> true (патч активен)"
         elif unpatched:
-            details = "Требуется патч isGoogleInternal"
+            details = "Требуется патч авторизации и снятия ограничений"
         else:
             details = "Сигнатура не найдена или не требуется"
 

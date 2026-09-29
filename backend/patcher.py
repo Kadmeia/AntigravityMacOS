@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import getpass
 import hashlib
 import logging
 import os
@@ -115,19 +116,120 @@ def kill_language_server(target_path: str | None = None) -> None:
 
 def _copy_replace_metadata(source: str, destination: str) -> None:
     """Preserve safe file metadata when an atomic replacement is prepared."""
-    source_stat = os.stat(source, follow_symlinks=False)
-    os.chmod(destination, stat.S_IMODE(source_stat.st_mode), follow_symlinks=False)
-    shutil.copystat(source, destination, follow_symlinks=False)
-    if hasattr(os, "listxattr"):
+    try:
+        source_stat = os.stat(source, follow_symlinks=False)
+        os.chmod(destination, stat.S_IMODE(source_stat.st_mode), follow_symlinks=False)
         try:
-            for name in os.listxattr(source, follow_symlinks=False):
-                try:
-                    value = os.getxattr(source, name, follow_symlinks=False)
-                    os.setxattr(destination, name, value, follow_symlinks=False)
-                except OSError:
-                    logging.debug("Could not copy xattr %s from %s", name, source)
+            shutil.copystat(source, destination, follow_symlinks=False)
         except OSError:
             pass
+        if hasattr(os, "listxattr"):
+            try:
+                for name in os.listxattr(source, follow_symlinks=False):
+                    try:
+                        value = os.getxattr(source, name, follow_symlinks=False)
+                        os.setxattr(destination, name, value, follow_symlinks=False)
+                    except OSError:
+                        logging.debug("Could not copy xattr %s from %s", name, source)
+            except OSError:
+                pass
+    except OSError as e:
+        logging.debug("Could not copy metadata from %s to %s: %s", source, destination, e)
+
+
+def ensure_bundle_writable(target_path: str, app_bundle_path: str | None = None) -> bool:
+    """
+    Checks if target_path or its directory is writable.
+    If not, attempts to fix permissions (via chmod, or osascript administrator prompt).
+    """
+    directory = os.path.dirname(target_path)
+    if os.path.exists(directory) and os.access(directory, os.W_OK):
+        if not os.path.exists(target_path) or os.access(target_path, os.W_OK):
+            return True
+
+    # Try local chmod if owned by current user
+    try:
+        if os.path.exists(directory):
+            os.chmod(directory, 0o755)
+        if os.path.exists(target_path):
+            os.chmod(target_path, 0o755)
+        if os.access(directory, os.W_OK) and (not os.path.exists(target_path) or os.access(target_path, os.W_OK)):
+            return True
+    except OSError:
+        pass
+
+    # Find the app bundle root to grant permissions
+    bundle_to_fix = app_bundle_path
+    if not bundle_to_fix and ".app/" in target_path:
+        bundle_to_fix = target_path[:target_path.find(".app/") + 4]
+
+    if not bundle_to_fix:
+        bundle_to_fix = directory
+
+    # Request elevation via standard macOS dialog
+    try:
+        current_user = getpass.getuser()
+        escaped = bundle_to_fix.replace('"', '\\"')
+        cmd = f'do shell script "chown -R {current_user} \\"{escaped}\\" && chmod -R u+w \\"{escaped}\\"" with administrator privileges'
+        res = subprocess.run(["osascript", "-e", cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
+        if res.returncode == 0:
+            logging.info(f"Granted write permissions on {bundle_to_fix} via macOS elevation")
+            return True
+        else:
+            logging.warning(f"Elevation rejected or failed: {res.stderr.strip()}")
+    except Exception as e:
+        logging.warning(f"Could not request elevation: {e}")
+
+    return os.path.exists(directory) and os.access(directory, os.W_OK)
+
+
+def _safe_copy_file(src: str, dst: str, app_bundle_path: str | None = None) -> None:
+    """
+    Safely copies src to dst.
+    Handles macOS xattr / copystat EPERM errors, and elevates permissions if needed.
+    """
+    try:
+        shutil.copy2(src, dst)
+        return
+    except OSError as err:
+        # If destination was already written by copyfile before copystat failed with EPERM on metadata/chflags
+        if os.path.exists(dst) and os.path.getsize(dst) == os.path.getsize(src):
+            try:
+                os.chmod(dst, 0o755)
+            except OSError:
+                pass
+            return
+
+        # Attempt to ensure write permissions and retry
+        if err.errno in (1, 13):  # EPERM or EACCES
+            if ensure_bundle_writable(dst, app_bundle_path):
+                try:
+                    shutil.copyfile(src, dst)
+                    try:
+                        os.chmod(dst, 0o755)
+                    except OSError:
+                        pass
+                    return
+                except OSError:
+                    pass
+
+        # Try plain copyfile without metadata copying
+        try:
+            shutil.copyfile(src, dst)
+            try:
+                os.chmod(dst, 0o755)
+            except OSError:
+                pass
+            return
+        except OSError:
+            pass
+
+        hint = ""
+        if err.errno == 1:
+            hint = " (macOS заблокировала изменение файлов в /Applications. Предоставьте доступ в «Системные настройки → Конфиденциальность → Управление приложениями» для Терминала/Unlocker, либо выполните в Терминале: sudo chown -R $(whoami) '/Applications/Antigravity.app')"
+        elif err.errno == 13:
+            hint = f" (Нет прав на запись. Выполните в Терминале: sudo chown -R $(whoami) '{app_bundle_path or os.path.dirname(dst)}')"
+        raise OSError(err.errno, f"{err.strerror}{hint}")
 
 
 def _resign_app_bundle(app_bundle_path: str | None) -> bool:
@@ -225,7 +327,7 @@ def patch_binary_file(bin_path: str, app_bundle_path: str | None = None) -> tupl
             logging.warning(f"Файл {bin_path} уже пропатчен, резервная копия оригинала не может быть создана")
         else:
             try:
-                shutil.copy2(bin_path, backup_path)
+                _safe_copy_file(bin_path, backup_path, app_bundle_path)
                 _write_backup_checksum(backup_path)
                 logging.info(f"Создан бэкап: {backup_path}")
             except Exception as e:
@@ -280,6 +382,7 @@ def patch_binary_file(bin_path: str, app_bundle_path: str | None = None) -> tupl
             os.fsync(f.fileno())
         _copy_replace_metadata(bin_path, tmp_path)
         kill_language_server(bin_path)
+        ensure_bundle_writable(bin_path, app_bundle_path)
         os.replace(tmp_path, bin_path)
         tmp_path = None
     except Exception as e:
@@ -294,7 +397,7 @@ def patch_binary_file(bin_path: str, app_bundle_path: str | None = None) -> tupl
     # Re-sign the modified binary
     if not sign_macos(bin_path, deep=False) or not _resign_app_bundle(app_bundle_path):
         if os.path.exists(backup_path):
-            shutil.copy2(backup_path, bin_path)
+            _safe_copy_file(backup_path, bin_path, app_bundle_path)
             _resign_app_bundle(app_bundle_path)
         return False, "Не удалось проверить подпись изменённого приложения; оригинал восстановлен"
 
@@ -312,7 +415,8 @@ def unpatch_binary_file(bin_path: str, app_bundle_path: str | None = None) -> tu
         if not _verify_backup_checksum(backup_path):
             return False, "Контрольная сумма резервной копии не совпадает; восстановление отменено"
         try:
-            shutil.copy2(backup_path, bin_path)
+            ensure_bundle_writable(bin_path, app_bundle_path)
+            _safe_copy_file(backup_path, bin_path, app_bundle_path)
             os.chmod(bin_path, 0o755)
             if not sign_macos(bin_path, deep=False) or not _resign_app_bundle(app_bundle_path):
                 return False, "Оригинал восстановлен, но проверка подписи бинарника не прошла"
@@ -338,7 +442,7 @@ def patch_js_file(js_path: str, app_bundle_path: str | None = None) -> tuple[boo
             return False, "Контрольная сумма резервной копии JS не совпадает; патч отменён"
     else:
         try:
-            shutil.copy2(js_path, backup_path)
+            _safe_copy_file(js_path, backup_path, app_bundle_path)
             _write_backup_checksum(backup_path)
             logging.info(f"Создан бэкап JS: {backup_path}")
         except Exception as e:
@@ -410,6 +514,7 @@ def patch_js_file(js_path: str, app_bundle_path: str | None = None) -> tuple[boo
                 f.flush()
                 os.fsync(f.fileno())
             _copy_replace_metadata(js_path, tmp_path)
+            ensure_bundle_writable(js_path, app_bundle_path)
             os.replace(tmp_path, js_path)
             tmp_path = None
         finally:
@@ -420,7 +525,7 @@ def patch_js_file(js_path: str, app_bundle_path: str | None = None) -> tuple[boo
                     pass
 
         if not _resign_app_bundle(app_bundle_path):
-            shutil.copy2(backup_path, js_path)
+            _safe_copy_file(backup_path, js_path, app_bundle_path)
             _resign_app_bundle(app_bundle_path)
             return False, "Не удалось проверить подпись приложения; исходный JS восстановлен"
 
@@ -441,7 +546,8 @@ def unpatch_js_file(js_path: str, app_bundle_path: str | None = None) -> tuple[b
         if not _verify_backup_checksum(backup_path):
             return False, "Контрольная сумма резервной копии JS не совпадает; восстановление отменено"
         try:
-            shutil.copy2(backup_path, js_path)
+            ensure_bundle_writable(js_path, app_bundle_path)
+            _safe_copy_file(backup_path, js_path, app_bundle_path)
             if not _resign_app_bundle(app_bundle_path):
                 return False, "JS восстановлен, но проверка подписи приложения не прошла"
             clear_ide_cache()
